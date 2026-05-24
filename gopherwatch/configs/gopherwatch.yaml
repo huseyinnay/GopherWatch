@@ -1,0 +1,20 @@
+global:
+  log_level: info
+  check_interval: 10s
+  failure_threshold: 3
+  restart_cooldown: 60s
+
+targets:
+  - name: my-api
+    type: http
+    url: http://localhost:8080/health
+    method: GET
+    expected_status: [200]
+    timeout: 5s
+    check_interval: 5s
+    container: my-api-container
+
+  - name: redis-cache
+    type: tcp
+    address: localhost:6379
+    container: redis
