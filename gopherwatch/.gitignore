@@ -1,0 +1,22 @@
+# Build çıktıları
+/gopherwatch
+*.exe
+
+# Test 
+*.test
+*.out
+coverage.txt
+
+# Go workspace dosyaları
+go.work
+go.work.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
