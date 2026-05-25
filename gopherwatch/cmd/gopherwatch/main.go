@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/huseyinnay/gopherwatch/internal/config"
+	"github.com/huseyinnay/gopherwatch/internal/supervisor"
 )
 
 func main() {
@@ -21,17 +25,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("config yüklendi",
-		"target_sayısı", len(cfg.Targets),
-		"log_level", cfg.Global.LogLevel,
-	)
-
-	for _, t := range cfg.Targets {
-		logger.Info("target",
-			"name", t.Name,
-			"type", t.Type,
-			"interval", t.CheckInterval.Std(),
-			"container", t.Container,
-		)
+	workers, err := supervisor.WorkersFromConfig(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "worker hatası: %v\n", err)
+		os.Exit(1)
 	}
+
+	logger.Info("gopherwatch başlıyor", "target_sayısı", len(workers))
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	sup := supervisor.New(logger, workers)
+	if err := sup.Run(ctx); err != nil {
+		logger.Error("supervisor hatası", "err", err)
+		os.Exit(1)
+	}
+
+	logger.Info("temiz çıkış")
 }
