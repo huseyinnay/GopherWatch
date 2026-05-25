@@ -33,7 +33,6 @@ targets:
 	if len(cfg.Targets) != 1 {
 		t.Fatalf("1 target bekleniyordu, %d geldi", len(cfg.Targets))
 	}
-	// Default'ların miras alındığını doğrula
 	if cfg.Targets[0].CheckInterval.Std() != 10*time.Second {
 		t.Errorf("check_interval global'den miras alınmamış")
 	}
@@ -65,5 +64,27 @@ targets:
 `)
 	if _, err := Load(path); err == nil {
 		t.Fatal("eksik url için hata bekleniyordu")
+	}
+}
+
+func TestLoad_InvalidType(t *testing.T) {
+	path := writeTemp(t, `
+targets:
+  - name: api
+    type: ping
+    url: http://a
+`)
+	if _, err := Load(path); err == nil {
+		t.Fatal("bilinmeyen type için hata bekleniyordu")
+	}
+}
+
+func TestLoad_NoTargets(t *testing.T) {
+	path := writeTemp(t, `
+global:
+  check_interval: 10s
+`)
+	if _, err := Load(path); err == nil {
+		t.Fatal("boş target listesi için hata bekleniyordu")
 	}
 }
