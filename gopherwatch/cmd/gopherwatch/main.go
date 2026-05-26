@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/huseyinnay/gopherwatch/internal/config"
@@ -17,13 +18,15 @@ func main() {
 	configPath := flag.String("config", "configs/gopherwatch.yaml", "config dosyası yolu")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config hatası: %v\n", err)
 		os.Exit(1)
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: parseLevel(cfg.Global.LogLevel),
+	}))
 
 	workers, err := supervisor.WorkersFromConfig(cfg)
 	if err != nil {
@@ -43,4 +46,17 @@ func main() {
 	}
 
 	logger.Info("temiz çıkış")
+}
+
+func parseLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
