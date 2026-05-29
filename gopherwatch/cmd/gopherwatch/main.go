@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/huseyinnay/gopherwatch/internal/config"
+	"github.com/huseyinnay/gopherwatch/internal/docker"
 	"github.com/huseyinnay/gopherwatch/internal/supervisor"
 )
 
@@ -34,18 +35,39 @@ func main() {
 		os.Exit(1)
 	}
 
+	var opts []supervisor.Option
+	if anyContainerConfigured(workers) {
+		mgr, err := docker.New(logger)
+		if err != nil {
+			logger.Warn("docker client kurulamadı; otomatik restart devre dışı", "err", err)
+		} else {
+			defer mgr.Close()
+			opts = append(opts, supervisor.WithRestarter(mgr))
+			logger.Info("docker otomatik restart etkin")
+		}
+	}
+
 	logger.Info("gopherwatch başlıyor", "target_sayısı", len(workers))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sup := supervisor.New(logger, workers)
+	sup := supervisor.New(logger, workers, opts...)
 	if err := sup.Run(ctx); err != nil {
 		logger.Error("supervisor hatası", "err", err)
 		os.Exit(1)
 	}
 
 	logger.Info("temiz çıkış")
+}
+
+func anyContainerConfigured(workers []supervisor.Worker) bool {
+	for _, w := range workers {
+		if w.Container != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseLevel(s string) slog.Level {
