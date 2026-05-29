@@ -2,7 +2,7 @@ global:
   log_level: info
   check_interval: 10s
   failure_threshold: 3
-  restart_cooldown: 60s
+  restart_cooldown: 60s        # aynı konteyner için ardışık restart'lar arası min. süre
 
 targets:
   - name: my-api
@@ -12,9 +12,10 @@ targets:
     expected_status: [200]
     timeout: 5s
     check_interval: 5s
-    container: my-api-container
+    container: my-api-container  # UNHEALTHY olunca restart edilecek konteyner
+    restart_cooldown: 30s        
 
   - name: redis-cache
     type: tcp
     address: localhost:6379
-    container: redis
+    container: redis             
