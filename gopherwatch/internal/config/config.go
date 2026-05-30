@@ -56,8 +56,32 @@ type Target struct {
 }
 
 type Config struct {
-	Global  Global   `yaml:"global"`
-	Targets []Target `yaml:"targets"`
+	Global        Global        `yaml:"global"`
+	Targets       []Target      `yaml:"targets"`
+	Notifications Notifications `yaml:"notifications,omitempty"`
+}
+
+type Notifications struct {
+	RateLimit Duration        `yaml:"rate_limit,omitempty"`
+	Discord   *DiscordConfig  `yaml:"discord,omitempty"`
+	Telegram  *TelegramConfig `yaml:"telegram,omitempty"`
+	Slack     *SlackConfig    `yaml:"slack,omitempty"`
+}
+
+type DiscordConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	WebhookURL string `yaml:"webhook_url"`
+}
+
+type TelegramConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	BotToken string `yaml:"bot_token"`
+	ChatID   string `yaml:"chat_id"`
+}
+
+type SlackConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	WebhookURL string `yaml:"webhook_url"`
 }
 
 // Load dosyayı okur, parse eder, varsayılanları uygular, doğrular.
@@ -142,6 +166,27 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("target %q: bilinmeyen type %q", t.Name, t.Type)
 		}
+	}
+	if err := c.Notifications.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *Notifications) validate() error {
+	if d := n.Discord; d != nil && d.Enabled && d.WebhookURL == "" {
+		return fmt.Errorf("discord bildirimi etkin ama webhook_url boş")
+	}
+	if t := n.Telegram; t != nil && t.Enabled {
+		if t.BotToken == "" {
+			return fmt.Errorf("telegram bildirimi etkin ama bot_token boş")
+		}
+		if t.ChatID == "" {
+			return fmt.Errorf("telegram bildirimi etkin ama chat_id boş")
+		}
+	}
+	if s := n.Slack; s != nil && s.Enabled && s.WebhookURL == "" {
+		return fmt.Errorf("slack bildirimi etkin ama webhook_url boş")
 	}
 	return nil
 }
