@@ -60,6 +60,12 @@ func WithRestarter(r reactor.Restarter) Option {
 	}
 }
 
+func WithNotifier(n reactor.Notifier) Option {
+	return func(s *Supervisor) {
+		s.notifier = n
+	}
+}
+
 type Supervisor struct {
 	workers   []Worker
 	logger    *slog.Logger
@@ -68,6 +74,7 @@ type Supervisor struct {
 	tracker   *tracker.Tracker
 	restarter reactor.Restarter
 	policies  map[string]reactor.RestartPolicy
+	notifier  reactor.Notifier
 }
 
 func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
@@ -131,7 +138,7 @@ func (s *Supervisor) Run(ctx context.Context) error {
 		close(s.events)
 	}()
 
-	react := reactor.New(s.logger, s.events, s.restarter, s.policies)
+	react := reactor.New(s.logger, s.events, s.restarter, s.policies, reactor.WithNotifier(s.notifier))
 	reactorDone := make(chan struct{})
 	go func() {
 		defer close(reactorDone)
