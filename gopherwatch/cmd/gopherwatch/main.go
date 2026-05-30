@@ -12,6 +12,7 @@ import (
 
 	"github.com/huseyinnay/gopherwatch/internal/config"
 	"github.com/huseyinnay/gopherwatch/internal/docker"
+	"github.com/huseyinnay/gopherwatch/internal/notifier"
 	"github.com/huseyinnay/gopherwatch/internal/supervisor"
 )
 
@@ -47,6 +48,12 @@ func main() {
 		}
 	}
 
+	if d, ok := buildNotifier(cfg, logger); ok {
+		defer d.Close()
+		opts = append(opts, supervisor.WithNotifier(d))
+		logger.Info("bildirim sistemi etkin", "kanal_sayısı", d.Count())
+	}
+
 	logger.Info("gopherwatch başlıyor", "target_sayısı", len(workers))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -68,6 +75,31 @@ func anyContainerConfigured(workers []supervisor.Worker) bool {
 		}
 	}
 	return false
+}
+
+func buildNotifier(cfg *config.Config, logger *slog.Logger) (*notifier.Dispatcher, bool) {
+	nc := cfg.Notifications
+
+	var notifiers []notifier.Notifier
+	if d := nc.Discord; d != nil && d.Enabled {
+		notifiers = append(notifiers, notifier.NewDiscordNotifier(d.WebhookURL))
+	}
+	if t := nc.Telegram; t != nil && t.Enabled {
+		notifiers = append(notifiers, notifier.NewTelegramNotifier(t.BotToken, t.ChatID))
+	}
+	if s := nc.Slack; s != nil && s.Enabled {
+		notifiers = append(notifiers, notifier.NewSlackNotifier(s.WebhookURL))
+	}
+
+	if len(notifiers) == 0 {
+		return nil, false
+	}
+
+	var opts []notifier.Option
+	if nc.RateLimit > 0 {
+		opts = append(opts, notifier.WithRateLimit(nc.RateLimit.Std()))
+	}
+	return notifier.NewDispatcher(logger, notifiers, opts...), true
 }
 
 func parseLevel(s string) slog.Level {

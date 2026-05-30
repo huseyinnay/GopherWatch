@@ -2,7 +2,7 @@ global:
   log_level: info
   check_interval: 10s
   failure_threshold: 3
-  restart_cooldown: 60s        # aynı konteyner için ardışık restart'lar arası min. süre
+  restart_cooldown: 60s          # aynı konteyner için ardışık restart'lar arası min. süre
 
 targets:
   - name: my-api
@@ -13,9 +13,28 @@ targets:
     timeout: 5s
     check_interval: 5s
     container: my-api-container  # UNHEALTHY olunca restart edilecek konteyner
-    restart_cooldown: 30s        
+    restart_cooldown: 30s
 
   - name: redis-cache
     type: tcp
     address: localhost:6379
-    container: redis             
+    container: redis
+
+# Bildirim kanalları. Her kanal opsiyoneldir; enabled:false ya da hiç
+# tanımlanmaması o kanalı kapatır. Birden fazla kanal aynı anda etkin olabilir
+# (aynı olay hepsine paralel gönderilir).
+notifications:
+  rate_limit: 60s                # aynı target için iki bildirim arası min. süre
+
+  discord:
+    enabled: true
+    webhook_url: https://discord.com/api/webhooks/123456789/your-webhook-token
+
+  telegram:
+    enabled: false
+    bot_token: "123456789:AA-your-bot-token"
+    chat_id: "987654321"
+
+  slack:
+    enabled: false
+    webhook_url: https://hooks.slack.com/services/T000/B000/your-webhook-token
