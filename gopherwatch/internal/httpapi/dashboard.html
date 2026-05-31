@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gopherwatch · kontrol paneli</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2230;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --ok: #3fb950;
+    --fail: #f85149;
+    --recover: #d29922;
+    --unknown: #6e7681;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { margin: 0; font-size: 18px; letter-spacing: -0.2px; }
+  .brand h1 .gw { color: var(--accent); }
+  .brand .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .status-line { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+  .conn { display: flex; align-items: center; gap: 7px; font-family: var(--mono); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--unknown); }
+  .conn.online .dot { background: var(--ok); box-shadow: 0 0 0 0 rgba(63,185,80,0.6); animation: pulse 2s infinite; }
+  .conn.offline .dot { background: var(--fail); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+
+  main { padding: 20px 24px 48px; max-width: 1280px; margin: 0 auto; }
+
+  .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+  .pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; min-width: 96px;
+  }
+  .pill .n { font-size: 20px; font-weight: 600; font-family: var(--mono); }
+  .pill .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .pill.ok .n { color: var(--ok); }
+  .pill.fail .n { color: var(--fail); }
+  .pill.recover .n { color: var(--recover); }
+  .pill.unknown .n { color: var(--muted); }
+
+  .layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .section-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--unknown);
+    border-radius: 10px; padding: 14px 16px; transition: border-color 0.2s;
+  }
+  .card.state-HEALTHY { border-left-color: var(--ok); }
+  .card.state-UNHEALTHY { border-left-color: var(--fail); }
+  .card.state-RECOVERING { border-left-color: var(--recover); }
+  .card.state-UNKNOWN { border-left-color: var(--unknown); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .card-name { font-weight: 600; font-size: 15px; word-break: break-all; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .badge.state-HEALTHY { color: var(--ok); background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.3); }
+  .badge.state-UNHEALTHY { color: var(--fail); background: rgba(248,81,73,0.12); border-color: rgba(248,81,73,0.3); }
+  .badge.state-RECOVERING { color: var(--recover); background: rgba(210,153,34,0.12); border-color: rgba(210,153,34,0.3); }
+  .badge.state-UNKNOWN { color: var(--muted); background: rgba(110,118,129,0.12); border-color: rgba(110,118,129,0.3); }
+
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .metric { display: flex; flex-direction: column; }
+  .metric .mv { font-family: var(--mono); font-size: 14px; }
+  .metric .ml { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .metric .mv.warn { color: var(--recover); }
+  .metric .mv.bad { color: var(--fail); }
+
+  .err {
+    margin-top: 12px; padding: 8px 10px; border-radius: 7px;
+    background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.25);
+    color: #ffb4ae; font-family: var(--mono); font-size: 12px; word-break: break-word;
+  }
+
+  .events {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .event {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .event:last-child { border-bottom: none; }
+  .event .ev-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .event .ev-target { font-weight: 600; font-size: 13px; word-break: break-all; }
+  .event .ev-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .event .ev-trans { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .arrow { color: var(--accent); }
+  .s-HEALTHY { color: var(--ok); }
+  .s-UNHEALTHY { color: var(--fail); }
+  .s-RECOVERING { color: var(--recover); }
+  .s-UNKNOWN { color: var(--muted); }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+  .offline-banner {
+    display: none; background: rgba(248,81,73,0.14); border: 1px solid rgba(248,81,73,0.4);
+    color: #ffb4ae; padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
+    font-size: 13px;
+  }
+  .offline .offline-banner { display: block; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1><span class="gw">gopher</span>watch</h1>
+      <span class="tag">kontrol paneli</span>
+    </div>
+    <div class="status-line">
+      <span id="updated">—</span>
+      <span class="conn" id="conn">
+        <span class="dot"></span>
+        <span id="conn-text">bağlanıyor…</span>
+      </span>
+    </div>
+  </header>
+
+  <main>
+    <div class="offline-banner" id="offline-banner">
+      Daemon'a ulaşılamıyor. Bağlantı yeniden kurulmaya çalışılıyor.
+    </div>
+
+    <div class="summary" id="summary"></div>
+
+    <div class="layout">
+      <section>
+        <h2 class="section-title">Hedefler</h2>
+        <div class="cards" id="cards">
+          <div class="empty">Yükleniyor…</div>
+        </div>
+      </section>
+      <section>
+        <h2 class="section-title">Son olaylar</h2>
+        <div class="events" id="events">
+          <div class="empty">Yükleniyor…</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+<script>
+  const POLL_MS = 2500;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function rel(iso) {
+    if (!iso) return "—";
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "—";
+    const diff = Math.max(0, Date.now() - t) / 1000;
+    if (diff < 60) return Math.floor(diff) + "s önce";
+    if (diff < 3600) return Math.floor(diff / 60) + "dk önce";
+    if (diff < 86400) return Math.floor(diff / 3600) + "sa önce";
+    return Math.floor(diff / 86400) + "g önce";
+  }
+
+  function lat(ms) {
+    if (ms == null || ms <= 0) return "—";
+    if (ms < 10) return ms.toFixed(1) + " ms";
+    return Math.round(ms) + " ms";
+  }
+
+  function stateClass(s) {
+    switch (s) {
+      case "HEALTHY": case "UNHEALTHY": case "RECOVERING": return "state-" + s;
+      default: return "state-UNKNOWN";
+    }
+  }
+
+  function setOnline(online, generatedAt) {
+    const conn = document.getElementById("conn");
+    const text = document.getElementById("conn-text");
+    document.body.classList.toggle("offline", !online);
+    conn.className = "conn " + (online ? "online" : "offline");
+    if (online) {
+      text.textContent = "canlı";
+      document.getElementById("updated").textContent =
+        "son güncelleme: " + (generatedAt ? rel(generatedAt) : "az önce");
+    } else {
+      text.textContent = "çevrimdışı";
+    }
+  }
+
+  function renderSummary(targets) {
+    const counts = { HEALTHY: 0, UNHEALTHY: 0, RECOVERING: 0, UNKNOWN: 0 };
+    targets.forEach(function (t) {
+      counts[t.state] = (counts[t.state] || 0) + 1;
+    });
+    const cells = [
+      { n: targets.length, l: "Toplam", c: "" },
+      { n: counts.HEALTHY, l: "Sağlıklı", c: "ok" },
+      { n: counts.UNHEALTHY, l: "Sorunlu", c: "fail" },
+      { n: counts.RECOVERING, l: "Toparlanıyor", c: "recover" },
+      { n: counts.UNKNOWN, l: "Bilinmiyor", c: "unknown" },
+    ];
+    document.getElementById("summary").innerHTML = cells.map(function (x) {
+      return '<div class="pill ' + x.c + '"><span class="n">' + x.n + '</span>' +
+             '<span class="l">' + x.l + "</span></div>";
+    }).join("");
+  }
+
+  function renderCards(targets) {
+    const el = document.getElementById("cards");
+    if (!targets.length) {
+      el.innerHTML = '<div class="empty">Hedef tanımlı değil.</div>';
+      return;
+    }
+    el.innerHTML = targets.map(function (t) {
+      const sc = stateClass(t.state);
+      const failCls = t.consecutive_fails > 0 ? " bad" : "";
+      const errBlock = t.error
+        ? '<div class="err">' + esc(t.error) + "</div>"
+        : "";
+      return (
+        '<div class="card ' + sc + '">' +
+          '<div class="card-head">' +
+            '<span class="card-name">' + esc(t.name) + "</span>" +
+            '<span class="badge ' + sc + '">' + esc(t.state) + "</span>" +
+          "</div>" +
+          '<div class="metrics">' +
+            '<div class="metric"><span class="mv">' + lat(t.latency_ms) + '</span><span class="ml">gecikme</span></div>' +
+            '<div class="metric"><span class="mv">' + rel(t.last_check) + '</span><span class="ml">son kontrol</span></div>' +
+            '<div class="metric"><span class="mv' + failCls + '">' + (t.consecutive_fails || 0) + '</span><span class="ml">ardışık hata</span></div>' +
+            '<div class="metric"><span class="mv">' + (t.total_failures || 0) + " / " + (t.total_checks || 0) + '</span><span class="ml">hata / kontrol</span></div>' +
+          "</div>" +
+          errBlock +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function renderEvents(events) {
+    const el = document.getElementById("events");
+    if (!events || !events.length) {
+      el.innerHTML = '<div class="empty">Bu pencerede state değişimi yok.</div>';
+      return;
+    }
+    el.innerHTML = events.map(function (e) {
+      return (
+        '<div class="event">' +
+          '<div class="ev-top">' +
+            '<span class="ev-target">' + esc(e.target) + "</span>" +
+            '<span class="ev-time">' + rel(e.timestamp) + "</span>" +
+          "</div>" +
+          '<div class="ev-trans">' +
+            '<span class="s-' + esc(e.old_state) + '">' + esc(e.old_state) + "</span> " +
+            '<span class="arrow">&rarr;</span> ' +
+            '<span class="s-' + esc(e.new_state) + '">' + esc(e.new_state) + "</span>" +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  async function tick() {
+    try {
+      const [sRes, eRes] = await Promise.all([
+        fetch("/status", { cache: "no-store" }),
+        fetch("/events?since=6h", { cache: "no-store" }),
+      ]);
+      if (!sRes.ok || !eRes.ok) throw new Error("http " + sRes.status + "/" + eRes.status);
+      const status = await sRes.json();
+      const events = await eRes.json();
+      const targets = status.targets || [];
+      renderSummary(targets);
+      renderCards(targets);
+      renderEvents(events.events || []);
+      setOnline(true, status.generated_at);
+    } catch (err) {
+      setOnline(false);
+    }
+  }
+
+  tick();
+  setInterval(tick, POLL_MS);
+</script>
+</body>
+</html>
