@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/huseyinnay/gopherwatch/internal/config"
+	"github.com/huseyinnay/gopherwatch/internal/httpapi"
 	"github.com/huseyinnay/gopherwatch/internal/prober"
 	"github.com/huseyinnay/gopherwatch/internal/reactor"
+	"github.com/huseyinnay/gopherwatch/internal/store"
 	"github.com/huseyinnay/gopherwatch/internal/tracker"
 )
 
@@ -66,6 +68,12 @@ func WithNotifier(n reactor.Notifier) Option {
 	}
 }
 
+func WithDashboard(addr string) Option {
+	return func(s *Supervisor) {
+		s.dashboardAddr = addr
+	}
+}
+
 type Supervisor struct {
 	workers   []Worker
 	logger    *slog.Logger
@@ -75,6 +83,9 @@ type Supervisor struct {
 	restarter reactor.Restarter
 	policies  map[string]reactor.RestartPolicy
 	notifier  reactor.Notifier
+
+	store         *store.Store
+	dashboardAddr string
 }
 
 func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
@@ -85,8 +96,10 @@ func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
 
 	thresholds := make(map[string]int, len(workers))
 	policies := make(map[string]reactor.RestartPolicy)
+	names := make([]string, 0, len(workers))
 	for _, w := range workers {
 		name := w.Prober.Name()
+		names = append(names, name)
 		thresholds[name] = w.FailureThreshold
 
 		if w.Container != "" {
@@ -104,6 +117,7 @@ func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
 		events:   make(chan tracker.Event, bufSize),
 		tracker:  tracker.New(thresholds, nil),
 		policies: policies,
+		store:    store.New(names),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -125,10 +139,12 @@ func (s *Supervisor) Run(ctx context.Context) error {
 		defer close(collectorDone)
 		for r := range s.results {
 			s.logProbe(r)
+			s.store.RecordProbe(r)
 			event, changed := s.tracker.Observe(r)
 			if !changed {
 				continue
 			}
+			s.store.RecordEvent(event)
 			select {
 			case s.events <- event:
 			case <-ctx.Done():
@@ -145,10 +161,25 @@ func (s *Supervisor) Run(ctx context.Context) error {
 		react.Run(ctx)
 	}()
 
+	var httpDone chan struct{}
+	if s.dashboardAddr != "" {
+		httpDone = make(chan struct{})
+		srv := httpapi.New(s.store, s.logger, httpapi.WithAddr(s.dashboardAddr))
+		go func() {
+			defer close(httpDone)
+			if err := srv.Run(ctx); err != nil {
+				s.logger.Error("dashboard sunucusu durdu", "err", err)
+			}
+		}()
+	}
+
 	wg.Wait()
 	close(s.results)
 	<-collectorDone
 	<-reactorDone
+	if httpDone != nil {
+		<-httpDone
+	}
 	return nil
 }
 
