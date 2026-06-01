@@ -4,6 +4,10 @@ global:
   failure_threshold: 3
   restart_cooldown: 60s          # aynı konteyner için ardışık restart'lar arası min. süre
 
+http:
+  enabled: true
+  addr: localhost:8090
+
 targets:
   - name: my-api
     type: http
@@ -27,7 +31,7 @@ notifications:
   rate_limit: 60s                # aynı target için iki bildirim arası min. süre
 
   discord:
-    enabled: true
+    enabled: false
     webhook_url: https://discord.com/api/webhooks/123456789/your-webhook-token
 
   telegram:
