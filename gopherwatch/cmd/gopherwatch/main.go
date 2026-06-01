@@ -54,6 +54,11 @@ func main() {
 		logger.Info("bildirim sistemi etkin", "kanal_sayısı", d.Count())
 	}
 
+	if cfg.HTTP.Enabled {
+		opts = append(opts, supervisor.WithDashboard(cfg.HTTP.Addr))
+		logger.Info("dashboard etkin", "addr", cfg.HTTP.Addr)
+	}
+
 	logger.Info("gopherwatch başlıyor", "target_sayısı", len(workers))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
