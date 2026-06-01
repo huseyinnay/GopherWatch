@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -59,6 +60,12 @@ type Config struct {
 	Global        Global        `yaml:"global"`
 	Targets       []Target      `yaml:"targets"`
 	Notifications Notifications `yaml:"notifications,omitempty"`
+	HTTP          HTTPConfig    `yaml:"http,omitempty"`
+}
+
+type HTTPConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Addr    string `yaml:"addr,omitempty"`
 }
 
 type Notifications struct {
@@ -138,6 +145,10 @@ func (c *Config) applyDefaults() {
 			}
 		}
 	}
+
+	if c.HTTP.Addr == "" {
+		c.HTTP.Addr = "localhost:8090"
+	}
 }
 
 func (c *Config) Validate() error {
@@ -169,6 +180,11 @@ func (c *Config) Validate() error {
 	}
 	if err := c.Notifications.validate(); err != nil {
 		return err
+	}
+	if c.HTTP.Enabled {
+		if _, _, err := net.SplitHostPort(c.HTTP.Addr); err != nil {
+			return fmt.Errorf("http kontrol sunucusu etkin ama addr geçersiz (%q): %w", c.HTTP.Addr, err)
+		}
 	}
 	return nil
 }
