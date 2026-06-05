@@ -1,6 +1,9 @@
 package store
 
 import (
+	"bufio"
+	"encoding/json"
+	"os"
 	"sync"
 	"time"
 
@@ -37,6 +40,9 @@ type Store struct {
 	order     []string // hedeflerin stabil sıralaması (config'deki sıra)
 	events    []Event  // kronolojik ring buffer; cap = maxEvents
 	maxEvents int
+
+	logFile *os.File
+	logEnc  *json.Encoder
 }
 
 // Option, Store'u yapılandıran fonksiyonel seçenek.
@@ -48,6 +54,19 @@ func WithMaxEvents(n int) Option {
 	return func(s *Store) {
 		if n > 0 {
 			s.maxEvents = n
+		}
+	}
+}
+
+// WithEventLog, persistency için kullanılacak dosya yolunu belirler.
+func WithEventLog(path string) Option {
+	return func(s *Store) {
+		if path != "" {
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+			if err == nil {
+				s.logFile = f
+				s.logEnc = json.NewEncoder(f)
+			}
 		}
 	}
 }
@@ -74,7 +93,51 @@ func New(names []string, opts ...Option) *Store {
 	for _, opt := range opts {
 		opt(s)
 	}
+
+	if s.logFile != nil {
+		s.loadEventsFromFile()
+	}
+
 	return s
+}
+
+func (s *Store) loadEventsFromFile() {
+	_, err := s.logFile.Seek(0, 0)
+	if err != nil {
+		return
+	}
+	scanner := bufio.NewScanner(s.logFile)
+	var allEvents []Event
+	for scanner.Scan() {
+		var e Event
+		if err := json.Unmarshal(scanner.Bytes(), &e); err == nil {
+			allEvents = append(allEvents, e)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		// Log okuma hatası olursa görmezden gelip okunabilen kısmı alabiliriz
+		// veya loglayabiliriz ancak burada sadece sessizce devam ediyoruz.
+	}
+	if len(allEvents) > s.maxEvents {
+		s.events = allEvents[len(allEvents)-s.maxEvents:]
+	} else {
+		s.events = allEvents
+	}
+	// Ayrıca dosyanın sonuna dönelim ki append edebilelim
+	_, _ = s.logFile.Seek(0, 2)
+}
+
+// Close, açık olan log dosyasını kapatır.
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logFile != nil {
+		err := s.logFile.Close()
+		s.logFile = nil
+		s.logEnc = nil
+		return err
+	}
+	return nil
 }
 
 // RecordProbe, tek bir probe sonucunu işler: canlı istatistikleri (son
@@ -124,17 +187,23 @@ func (s *Store) RecordEvent(e tracker.Event) {
 		st.LastChange = e.Timestamp
 	}
 
-	s.events = append(s.events, Event{
+	evt := Event{
 		Target:    e.Target,
 		OldState:  e.OldState.String(),
 		NewState:  e.NewState.String(),
 		Timestamp: e.Timestamp,
-	})
+	}
+
+	s.events = append(s.events, evt)
 
 	if len(s.events) > s.maxEvents {
 		trimmed := make([]Event, s.maxEvents)
 		copy(trimmed, s.events[len(s.events)-s.maxEvents:])
 		s.events = trimmed
+	}
+
+	if s.logEnc != nil {
+		_ = s.logEnc.Encode(evt)
 	}
 }
 
