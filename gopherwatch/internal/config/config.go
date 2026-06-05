@@ -40,6 +40,7 @@ type Global struct {
 	CheckInterval    Duration `yaml:"check_interval"`
 	FailureThreshold int      `yaml:"failure_threshold"`
 	RestartCooldown  Duration `yaml:"restart_cooldown"`
+	EventLogFile     string   `yaml:"event_log_file,omitempty"`
 }
 
 type Target struct {
@@ -64,8 +65,9 @@ type Config struct {
 }
 
 type HTTPConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Addr    string `yaml:"addr,omitempty"`
+	Enabled   bool   `yaml:"enabled"`
+	Addr      string `yaml:"addr,omitempty"`
+	AuthToken string `yaml:"auth_token,omitempty"`
 }
 
 type Notifications struct {

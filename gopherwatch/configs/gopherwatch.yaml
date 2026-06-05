@@ -3,10 +3,12 @@ global:
   check_interval: 10s
   failure_threshold: 3
   restart_cooldown: 60s          # aynı konteyner için ardışık restart'lar arası min. süre
+  event_log_file: "/var/lib/gopherwatch/events.jsonl"
 
 http:
   enabled: true
-  addr: localhost:8090
+  addr: 0.0.0.0:8090
+  auth_token: "your-secret-token"
 
 targets:
   - name: my-api
@@ -15,10 +17,9 @@ targets:
     method: GET
     expected_status: [200]
     timeout: 5s
-    check_interval: 5s
     container: my-api-container  # UNHEALTHY olunca restart edilecek konteyner
     restart_cooldown: 30s
-
+    
   - name: redis-cache
     type: tcp
     address: localhost:6379
