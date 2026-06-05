@@ -32,6 +32,7 @@ type Server struct {
 	now             func() time.Time
 	shutdownTimeout time.Duration
 	defaultWindow   time.Duration // /events için "since" verilmezse kullanılan pencere
+	authToken       string
 	srv             *http.Server
 }
 
@@ -62,6 +63,13 @@ func WithShutdownTimeout(d time.Duration) Option {
 		if d > 0 {
 			s.shutdownTimeout = d
 		}
+	}
+}
+
+// WithAuthToken, API ve dashboard için token tabanlı doğrulamayı etkinleştirir.
+func WithAuthToken(token string) Option {
+	return func(s *Server) {
+		s.authToken = token
 	}
 }
 
@@ -121,14 +129,47 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Server) routes() *http.ServeMux {
+func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleDashboard)
 	mux.HandleFunc("/status", s.handleStatus)
 	mux.HandleFunc("/events", s.handleEvents)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/healthz", s.handleHealthz)
+
+	if s.authToken != "" {
+		return s.authMiddleware(mux)
+	}
 	return mux
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+
+		if token != s.authToken {
+			if r.URL.Path == "/" {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte("Unauthorized. Lütfen ?token=... ile erişin.\n"))
+				return
+			}
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {

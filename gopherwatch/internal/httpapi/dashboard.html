@@ -309,9 +309,13 @@
 
   async function tick() {
     try {
+      const q = window.location.search;
+      const statusUrl = "/status" + q;
+      const eventsUrl = "/events" + (q ? q + "&" : "?") + "since=6h";
+
       const [sRes, eRes] = await Promise.all([
-        fetch("/status", { cache: "no-store" }),
-        fetch("/events?since=6h", { cache: "no-store" }),
+        fetch(statusUrl, { cache: "no-store" }),
+        fetch(eventsUrl, { cache: "no-store" }),
       ]);
       if (!sRes.ok || !eRes.ok) throw new Error("http " + sRes.status + "/" + eRes.status);
       const status = await sRes.json();
