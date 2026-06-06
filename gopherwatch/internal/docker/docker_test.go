@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 )
 
@@ -28,16 +27,16 @@ type fakeEngine struct {
 	gate chan struct{}
 }
 
-func (f *fakeEngine) ContainerInspect(ctx context.Context, id string) (types.ContainerJSON, error) {
+func (f *fakeEngine) ContainerInspect(ctx context.Context, id string) (container.InspectResponse, error) {
 	atomic.AddInt32(&f.inspectCalls, 1)
 	if f.inspectErr != nil {
-		return types.ContainerJSON{}, f.inspectErr
+		return container.InspectResponse{}, f.inspectErr
 	}
-	return types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{
+	return container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
 			ID:    "deadbeefcafe0123456789",
 			Name:  "/" + id,
-			State: &types.ContainerState{Running: f.running},
+			State: &container.State{Running: f.running},
 		},
 	}, nil
 }

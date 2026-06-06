@@ -7,14 +7,12 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
 type engineAPI interface {
-	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
 	ContainerRestart(ctx context.Context, containerID string, options container.StopOptions) error
 }
 

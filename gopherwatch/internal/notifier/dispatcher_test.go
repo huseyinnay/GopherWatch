@@ -62,15 +62,6 @@ func (f *fakeSink) count() int {
 	return len(f.calls)
 }
 
-func (f *fakeSink) targets() []string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	out := make([]string, len(f.calls))
-	for i, c := range f.calls {
-		out[i] = c.Target
-	}
-	return out
-}
 
 func notif(target string) Notification {
 	return Notification{Target: target, OldState: "HEALTHY", NewState: "UNHEALTHY", Level: LevelCritical}
