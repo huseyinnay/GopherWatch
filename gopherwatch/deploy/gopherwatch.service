@@ -1,0 +1,20 @@
+[Unit]
+Description=GopherWatch - Uptime & Health Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Uygulamanın yolu (kendi sisteminize göre güncelleyebilirsiniz)
+ExecStart=/usr/local/bin/gopherwatch start -config /etc/gopherwatch/config.yaml
+# PIDFile, uygulamanın start anında oluşturduğu dosya olmalıdır.
+PIDFile=/tmp/gopherwatch.pid
+
+# Reload işlemi (SIGHUP sinyali gönderir)
+ExecReload=/usr/local/bin/gopherwatch reload
+
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
