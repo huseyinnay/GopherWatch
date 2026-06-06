@@ -68,9 +68,16 @@ func WithNotifier(n reactor.Notifier) Option {
 	}
 }
 
-func WithDashboard(addr string) Option {
+func WithDashboard(addr, authToken string) Option {
 	return func(s *Supervisor) {
 		s.dashboardAddr = addr
+		s.dashboardAuthToken = authToken
+	}
+}
+
+func WithStoreOptions(opts ...store.Option) Option {
+	return func(s *Supervisor) {
+		s.storeOpts = append(s.storeOpts, opts...)
 	}
 }
 
@@ -84,8 +91,10 @@ type Supervisor struct {
 	policies  map[string]reactor.RestartPolicy
 	notifier  reactor.Notifier
 
-	store         *store.Store
-	dashboardAddr string
+	store              *store.Store
+	storeOpts          []store.Option
+	dashboardAddr      string
+	dashboardAuthToken string
 }
 
 func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
@@ -117,15 +126,19 @@ func New(logger *slog.Logger, workers []Worker, opts ...Option) *Supervisor {
 		events:   make(chan tracker.Event, bufSize),
 		tracker:  tracker.New(thresholds, nil),
 		policies: policies,
-		store:    store.New(names),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
+	s.store = store.New(names, s.storeOpts...)
 	return s
 }
 
 func (s *Supervisor) Run(ctx context.Context) error {
+	defer func() {
+		_ = s.store.Close()
+	}()
+
 	var wg sync.WaitGroup
 
 	// Workers
@@ -164,7 +177,11 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	var httpDone chan struct{}
 	if s.dashboardAddr != "" {
 		httpDone = make(chan struct{})
-		srv := httpapi.New(s.store, s.logger, httpapi.WithAddr(s.dashboardAddr))
+		opts := []httpapi.Option{httpapi.WithAddr(s.dashboardAddr)}
+		if s.dashboardAuthToken != "" {
+			opts = append(opts, httpapi.WithAuthToken(s.dashboardAuthToken))
+		}
+		srv := httpapi.New(s.store, s.logger, opts...)
 		go func() {
 			defer close(httpDone)
 			if err := srv.Run(ctx); err != nil {
